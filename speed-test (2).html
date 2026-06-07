@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Internet Speed Test</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0c10;
+    --surface: #12151c;
+    --surface2: #1a1e28;
+    --border: rgba(255,255,255,0.07);
+    --text: #f0f2f8;
+    --muted: #6b7280;
+    --accent: #3b82f6;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    position: relative;
+    overflow: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    top: -40%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 700px;
+    height: 700px;
+    background: radial-gradient(circle, rgba(59,130,246,0.07) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.6rem;
+  }
+  header { text-align: center; }
+  header h1 { font-size: 1.05rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+  header p { font-size: 0.72rem; color: rgba(107,114,128,0.55); margin-top: 5px; font-family: var(--font-mono); letter-spacing: 0.04em; }
+
+  .gauge-wrap { position: relative; width: 260px; height: 260px; }
+  .gauge-wrap svg { width: 260px; height: 260px; }
+  #gauge-bg { stroke: var(--surface2); }
+  #gauge-arc {
+    stroke: var(--accent);
+    stroke-linecap: round;
+    stroke-dasharray: 715;
+    stroke-dashoffset: 715;
+    transform: rotate(-90deg);
+    transform-origin: center;
+    transition: stroke-dashoffset 0.5s cubic-bezier(0.4,0,0.2,1), stroke 0.4s ease;
+  }
+  #gauge-glow {
+    stroke: var(--accent);
+    stroke-linecap: round;
+    stroke-dasharray: 715;
+    stroke-dashoffset: 715;
+    transform: rotate(-90deg);
+    transform-origin: center;
+    opacity: 0.22;
+    filter: blur(6px);
+    transition: stroke-dashoffset 0.5s cubic-bezier(0.4,0,0.2,1), stroke 0.4s ease;
+  }
+  .gauge-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+  #speed-num { font-family: var(--font-mono); font-size: 3.4rem; font-weight: 500; line-height: 1; color: var(--text); letter-spacing: -0.03em; transition: color 0.4s; }
+  #speed-unit { font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); letter-spacing: 0.12em; margin-top: 5px; }
+
+  #status-txt { font-size: 0.82rem; color: var(--muted); min-height: 20px; text-align: center; letter-spacing: 0.03em; }
+
+  /* Download progress section */
+  .dl-section { width: 100%; display: none; flex-direction: column; gap: 10px; }
+  .dl-section.visible { display: flex; }
+  .dl-header { display: flex; justify-content: space-between; align-items: baseline; }
+  .dl-label { font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  #dl-bytes { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text); font-weight: 500; }
+  .progress-track { width: 100%; height: 3px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+  #progress-bar { height: 100%; width: 0%; background: var(--accent); border-radius: 2px; transition: width 0.4s ease; box-shadow: 0 0 10px rgba(59,130,246,0.6); }
+  .dl-footer { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.68rem; color: rgba(107,114,128,0.6); }
+
+  #start-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 13px 38px;
+    font-family: var(--font-display); font-size: 0.88rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text); background: transparent;
+    border: 1px solid rgba(59,130,246,0.35); border-radius: 2px;
+    cursor: pointer; position: relative; overflow: hidden;
+    transition: border-color 0.2s, transform 0.1s;
+  }
+  #start-btn::before { content: ''; position: absolute; inset: 0; background: rgba(59,130,246,0.1); opacity: 0; transition: opacity 0.2s; }
+  #start-btn:hover:not(:disabled)::before { opacity: 1; }
+  #start-btn:hover:not(:disabled) { border-color: rgba(59,130,246,0.65); }
+  #start-btn:active:not(:disabled) { transform: scale(0.97); }
+  #start-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+  .btn-icon { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 0.9rem 1rem; text-align: center; transition: border-color 0.4s; }
+  .stat-card.lit { border-color: rgba(59,130,246,0.22); }
+  .stat-label { font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .stat-val { font-family: var(--font-mono); font-size: 1.1rem; font-weight: 500; color: var(--text); }
+
+  #rating-badge { display: none; font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 5px 16px; border-radius: 2px; font-family: var(--font-mono); }
+  #live-log { font-family: var(--font-mono); font-size: 0.7rem; color: rgba(107,114,128,0.55); min-height: 16px; text-align: center; letter-spacing: 0.03em; }
+
+  @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  .fade-up { animation: fadeUp 0.4s ease forwards; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Speed Test</h1>
+    <p>100 GB download · result after completion</p>
+  </header>
+
+  <div class="gauge-wrap">
+    <svg viewBox="0 0 260 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle id="gauge-bg" cx="130" cy="130" r="114" stroke-width="10" fill="none"/>
+      <circle id="gauge-glow" cx="130" cy="130" r="114" stroke-width="14" fill="none"/>
+      <circle id="gauge-arc" cx="130" cy="130" r="114" stroke-width="10" fill="none"/>
+    </svg>
+    <div class="gauge-center">
+      <div id="speed-num">--</div>
+      <div id="speed-unit">Mbps</div>
+    </div>
+  </div>
+
+  <div id="status-txt">Click Start to begin</div>
+  <span id="rating-badge"></span>
+
+  <div class="dl-section" id="dl-section">
+    <div class="dl-header">
+      <span class="dl-label">Downloading</span>
+      <span id="dl-bytes">0 GB / 100 GB</span>
+    </div>
+    <div class="progress-track">
+      <div id="progress-bar"></div>
+    </div>
+    <div class="dl-footer">
+      <span id="dl-speed-live">-- Mbps</span>
+      <span id="dl-eta">calculating...</span>
+    </div>
+  </div>
+
+  <button id="start-btn">
+    <svg class="btn-icon" id="btn-icon-svg" viewBox="0 0 24 24">
+      <polygon points="5 3 19 12 5 21 5 3"/>
+    </svg>
+    <span id="btn-label">Start Test</span>
+  </button>
+
+  <div class="stats-grid">
+    <div class="stat-card" id="card-dl">
+      <div class="stat-label">Avg Download</div>
+      <div class="stat-val" id="s-dl">--</div>
+    </div>
+    <div class="stat-card" id="card-ping">
+      <div class="stat-label">Latency</div>
+      <div class="stat-val" id="s-ping">--</div>
+    </div>
+    <div class="stat-card" id="card-data">
+      <div class="stat-label">Total Data</div>
+      <div class="stat-val" id="s-data">--</div>
+    </div>
+  </div>
+
+  <div id="live-log"></div>
+</div>
+
+<script>
+const arc = document.getElementById('gauge-arc');
+const glowArc = document.getElementById('gauge-glow');
+const speedNum = document.getElementById('speed-num');
+const statusTxt = document.getElementById('status-txt');
+const startBtn = document.getElementById('start-btn');
+const btnLabel = document.getElementById('btn-label');
+const btnIconSvg = document.getElementById('btn-icon-svg');
+const dlSection = document.getElementById('dl-section');
+const progressBar = document.getElementById('progress-bar');
+const dlBytesEl = document.getElementById('dl-bytes');
+const dlSpeedLive = document.getElementById('dl-speed-live');
+const dlEta = document.getElementById('dl-eta');
+const liveLog = document.getElementById('live-log');
+const sDl = document.getElementById('s-dl');
+const sPing = document.getElementById('s-ping');
+const sData = document.getElementById('s-data');
+const ratingBadge = document.getElementById('rating-badge');
+
+const CIRC = 2 * Math.PI * 114;
+const MAX_MBPS = 500;
+const TARGET_BYTES = 100 * 1024 * 1024 * 1024; // 100 GB
+
+// Each XHR chunk = 25 MB, loops until 100 GB done
+const CHUNK = 25 * 1024 * 1024;
+const PARALLEL = 6;
+
+let totalLoaded = 0;
+let testDone = false;
+let startTime = 0;
+let pingMs = 0;
+let activeXhrs = [];
+let uiTimer = null;
+
+function setArc(mbps) {
+  const pct = Math.min(mbps / MAX_MBPS, 1);
+  const offset = CIRC * (1 - pct);
+  arc.style.strokeDashoffset = offset;
+  glowArc.style.strokeDashoffset = offset;
+  const c = mbps < 10 ? '#ef4444' : mbps < 50 ? '#f59e0b' : '#10b981';
+  arc.style.stroke = c; glowArc.style.stroke = c; speedNum.style.color = c;
+}
+
+function resetArc() {
+  arc.style.strokeDashoffset = CIRC; glowArc.style.strokeDashoffset = CIRC;
+  arc.style.stroke = '#3b82f6'; glowArc.style.stroke = '#3b82f6'; speedNum.style.color = '';
+}
+
+function fmt(v) { return v < 1 ? v.toFixed(2) : v < 10 ? v.toFixed(1) : Math.round(v); }
+
+function fmtBytes(b) {
+  if (b < 1024*1024*1024) return (b/1024/1024).toFixed(2) + ' MB';
+  return (b/1024/1024/1024).toFixed(3) + ' GB';
+}
+
+function fmtTime(sec) {
+  if (sec < 60) return Math.round(sec) + 's';
+  if (sec < 3600) return Math.floor(sec/60) + 'm ' + Math.round(sec%60) + 's';
+  return Math.floor(sec/3600) + 'h ' + Math.floor((sec%3600)/60) + 'm';
+}
+
+function setBtn(loading) {
+  if (loading) {
+    btnIconSvg.innerHTML = '<circle cx="12" cy="12" r="8" stroke-dasharray="25 25" style="transform-origin:center;animation:spin 0.9s linear infinite"/>';
+    btnLabel.textContent = 'Downloading...';
+  } else {
+    btnIconSvg.innerHTML = '<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4"/>';
+    btnLabel.textContent = 'Test Again';
+  }
+}
+
+function measurePing() {
+  return new Promise(resolve => {
+    const t0 = performance.now();
+    const img = new Image();
+    img.onload = img.onerror = () => resolve(Math.round(performance.now() - t0));
+    img.src = 'https://www.google.com/favicon.ico?' + Date.now();
+    setTimeout(() => resolve(999), 3000);
+  });
+}
+
+function updateUI() {
+  const elapsed = (performance.now() - startTime) / 1000;
+  const mbps = elapsed > 0 ? (totalLoaded * 8) / elapsed / 1e6 : 0;
+  const gbLoaded = totalLoaded / 1024 / 1024 / 1024;
+  const pct = Math.min(totalLoaded / TARGET_BYTES, 1);
+  const remaining = pct > 0 ? (elapsed / pct) * (1 - pct) : 0;
+
+  speedNum.textContent = fmt(mbps);
+  setArc(mbps);
+  progressBar.style.width = (pct * 100).toFixed(3) + '%';
+  dlBytesEl.textContent = gbLoaded.toFixed(3) + ' GB / 100 GB';
+  dlSpeedLive.textContent = fmt(mbps) + ' Mbps';
+  dlEta.textContent = remaining > 0 ? 'ETA ' + fmtTime(remaining) : 'finishing...';
+  sData.textContent = fmtBytes(totalLoaded);
+  document.getElementById('card-data').classList.add('lit');
+  liveLog.textContent = fmt(mbps) + ' Mbps · ' + gbLoaded.toFixed(3) + ' GB · ' + fmtTime(elapsed) + ' elapsed';
+}
+
+function doXhr(slotIdx) {
+  if (testDone) return;
+  const url = 'https://speed.cloudflare.com/__down?bytes=' + CHUNK + '&t=' + Date.now() + '_' + slotIdx;
+  const xhr = new XMLHttpRequest();
+  activeXhrs[slotIdx] = xhr;
+  xhr.open('GET', url, true);
+  xhr.responseType = 'arraybuffer';
+
+  let prev = 0;
+  xhr.onprogress = function(e) {
+    if (testDone) { xhr.abort(); return; }
+    const delta = e.loaded - prev;
+    prev = e.loaded;
+    totalLoaded += delta;
+
+    // Check if 100 GB reached
+    if (totalLoaded >= TARGET_BYTES) {
+      testDone = true;
+      xhr.abort();
+      activeXhrs.forEach(x => { try { x.abort(); } catch(e){} });
+      clearInterval(uiTimer);
+      finalize();
+    }
+  };
+
+  xhr.onload = function() {
+    if (!testDone) doXhr(slotIdx); // loop: grab next chunk
+  };
+
+  xhr.onerror = function() {
+    if (!testDone) setTimeout(() => doXhr(slotIdx), 500);
+  };
+
+  xhr.onabort = function() {};
+  xhr.send();
+}
+
+async function runTest() {
+  startBtn.disabled = true;
+  setBtn(true);
+  ratingBadge.style.display = 'none';
+  ratingBadge.className = '';
+  resetArc();
+  speedNum.textContent = '--';
+  sDl.textContent = '--'; sPing.textContent = '--'; sData.textContent = '--';
+  ['card-dl','card-ping','card-data'].forEach(id => document.getElementById(id).classList.remove('lit'));
+  dlSection.classList.remove('visible');
+  progressBar.style.width = '0%';
+  liveLog.textContent = '';
+  totalLoaded = 0;
+  testDone = false;
+  activeXhrs = [];
+
+  statusTxt.textContent = 'Measuring latency...';
+  pingMs = await measurePing();
+  sPing.textContent = pingMs + ' ms';
+  document.getElementById('card-ping').classList.add('lit');
+
+  statusTxt.textContent = 'Downloading 100 GB... result shown when done';
+  dlSection.classList.add('visible');
+
+  startTime = performance.now();
+  uiTimer = setInterval(updateUI, 400);
+
+  for (let i = 0; i < PARALLEL; i++) {
+    setTimeout(() => doXhr(i), i * 80);
+  }
+}
+
+function finalize() {
+  const elapsed = (performance.now() - startTime) / 1000;
+  const mbps = (totalLoaded * 8) / elapsed / 1e6;
+  const gbLoaded = (totalLoaded / 1024 / 1024 / 1024).toFixed(3);
+
+  progressBar.style.width = '100%';
+  speedNum.textContent = fmt(mbps);
+  setArc(mbps);
+  sDl.textContent = fmt(mbps) + ' Mbps';
+  sData.textContent = gbLoaded + ' GB';
+  dlBytesEl.textContent = gbLoaded + ' GB / 100 GB';
+  dlEta.textContent = 'complete · ' + fmtTime(elapsed);
+  liveLog.textContent = 'Done · ' + gbLoaded + ' GB in ' + fmtTime(elapsed);
+  document.getElementById('card-dl').classList.add('lit');
+
+  let label, rc, rbg;
+  if (mbps >= 200)      { label='Blazing Fast'; rc='#10b981'; rbg='rgba(16,185,129,0.1)'; }
+  else if (mbps >= 100) { label='Excellent';    rc='#10b981'; rbg='rgba(16,185,129,0.09)'; }
+  else if (mbps >= 50)  { label='Good';         rc='#3b82f6'; rbg='rgba(59,130,246,0.09)'; }
+  else if (mbps >= 20)  { label='Moderate';     rc='#f59e0b'; rbg='rgba(245,158,11,0.1)'; }
+  else                  { label='Slow';          rc='#ef4444'; rbg='rgba(239,68,68,0.1)'; }
+
+  ratingBadge.textContent = label + ' connection';
+  ratingBadge.style.cssText = `display:inline-block;color:${rc};background:${rbg};border:1px solid ${rc}44;font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;padding:5px 16px;border-radius:2px;font-family:'DM Mono',monospace;`;
+  ratingBadge.classList.add('fade-up');
+
+  statusTxt.textContent = fmt(mbps) + ' Mbps avg · ' + pingMs + ' ms ping · ' + fmtTime(elapsed) + ' total';
+  startBtn.disabled = false;
+  setBtn(false);
+}
+
+startBtn.addEventListener('click', runTest);
+</script>
+</body>
+</html>
